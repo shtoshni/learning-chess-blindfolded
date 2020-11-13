@@ -1,10 +1,21 @@
 # Learning Chess Blindfolded - ICLR 2020 
 Chess as a testbed for evaluating language models at world state tracking. 
 
-
-## Data Preparation
+## Setup
 Data can be downloaded from [rebel](http://rebel13.nl/dl.html?file=dl/MillionBase%202.5%20(PGN).7z). <br/>
 The rest of the processing assumes that we have the PGN file extracted. 
+
+Install the packages specified in requirements.txt
+```
+pip install -r requirements.txt
+```
+
+```
+cd src/
+export PYTHONPATH=${PWD}:${PYTHONPATH}
+```
+
+## Data Preparation
 
 
 Parsing PGN to get data in SAN annotation
@@ -55,15 +66,7 @@ python data_processing/data_stats.py --data_dir ../data/lm_chess/human/uci/
 ```
 
 ## Training 
-First install the packages specified in requirements.txt
-```
-pip install -r requirements.txt
-```
 
-```
-cd src/
-export PYTHONPATH=${PWD}:${PYTHONPATH}
-```
 Default settings:
 - Train-L i.e. 100K games for training
 - GPT2-small configurations i.e. n_layer=12, n_head=12, n_embd=768
