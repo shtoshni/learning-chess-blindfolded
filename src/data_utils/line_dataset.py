@@ -5,21 +5,18 @@ from torch import Tensor
 from torch.utils.data.dataset import Dataset
 from os import path
 import numpy as np
-from data_processing.get_fen_repr import initialize_game_array
 
 logger = logging.getLogger(__name__)
 
 
 class LineByLineTextDataset(Dataset):
-    initial_game_state = initialize_game_array()
 
     def __init__(self, tokenizer, file_path, block_size, max_instances=None,
-                 grounding=False, rap_prob=0.0, fixed_attention=False):
+                 grounding=False, rap_prob=0.0):
         # print(file_path)
         assert os.path.isfile(file_path)
         self.rap_prob = rap_prob
         self.grounding = grounding
-        self.fixed_attention = fixed_attention
         self.tokenizer = tokenizer
 
         logger.info("Creating features from dataset file at %s", file_path)
@@ -59,9 +56,6 @@ class LineByLineTextDataset(Dataset):
             board_rep = self._process_fen(self.fen_data[i], self.end_positions[i])
             output_dict['board_rep'] = board_rep
 
-        if self.fixed_attention:
-            output_dict['last_mention'] = self.get_last_mention_idx(self.examples[i])
-
         output_dict['input_ids'] = torch.tensor(self.examples[i])
         output_dict['separator_ind'] = self.end_positions[i]
 
@@ -94,18 +88,11 @@ class LineByLineTextDataset(Dataset):
 
                 move_counter += 1
 
-        # print(mod_example, mod_end_positions, piece_type_posns)
-        # import sys
-        # sys.exit()
-        # print(' '.join([self.tokenizer.id2symbol[idx] for idx in mod_example]))
-        # import sys
-        # sys.exit()
         return mod_example, mod_end_positions, piece_type_posns
 
     @staticmethod
     def _process_fen(fen_data, end_positions):
-        initial_fen_state = torch.unsqueeze(torch.tensor(LineByLineTextDataset.initial_game_state), dim=0)
-        full_mat = torch.cat([initial_fen_state, torch.tensor(fen_data.reshape(-1, 70))], dim=0)
+        full_mat = torch.tensor(fen_data.reshape(-1, 70))
         reshaped_mat = full_mat[:, :64]
         other_info = full_mat[:, 64:]  # Castling, move, ischeck
 
@@ -123,6 +110,7 @@ class LineByLineTextDataset(Dataset):
         other_info = torch.cat([other_info, torch.zeros(other_info.shape[0], 64 - other_info.shape[1])], dim=1)
         board_rep = torch.cat([board_rep, other_info], dim=-1)
 
+        # print(sum(end_positions), board_rep.shape[0])
         assert (sum(end_positions) == board_rep.shape[0])
         return board_rep
 

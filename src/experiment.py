@@ -1,14 +1,16 @@
 import sys
 import math
-from os import path
-
+import os
+import json
 import torch
+
+from os import path
 from pytorch_lightning.callbacks import LearningRateLogger
 from pytorch_lightning.callbacks import EarlyStopping  # , ModelCheckpoint
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from lm_model import GPT2LM
+from model_utils.lm_model import ChessLM
 from callbacks.model_checkpoint import MyModelCheckpoint
 
 
@@ -56,7 +58,7 @@ def experiment(args):
     trainer = Trainer.from_argparse_args(
         args,
         amp_level='O1',
-        gpus=1,
+        gpus=-1,
         precision=16,
         # auto_scale_batch_size='binsearch',
         weights_save_path=args.save_dir,
@@ -82,7 +84,7 @@ def experiment(args):
     print("Number of training steps: %d" % args.num_training_steps)
 
     if not stop_training:
-        lm_model = GPT2LM(args, **vars(args))
+        lm_model = ChessLM(args, **vars(args))
         trainer.fit(lm_model)
         print(potential_old_checkpoint)
         last_checkpoint = torch.load(potential_old_checkpoint)
@@ -90,19 +92,35 @@ def experiment(args):
     print("Best validation model path: ", last_checkpoint['checkpoint_callback_best_model_path'])
     print("Best validation performance:", last_checkpoint['checkpoint_callback_best_model_score'])
 
-    lm_model = GPT2LM.load_from_checkpoint(checkpoint_path=last_checkpoint['checkpoint_callback_best_model_path'])
+    lm_model = ChessLM.load_from_checkpoint(checkpoint_path=last_checkpoint['checkpoint_callback_best_model_path'],
+                                            other_eval=args.other_eval)
     trainer = Trainer.from_argparse_args(
         args,
         amp_level='O1',
         gpus=1,
         precision=16,
-        # auto_scale_batch_size='binsearch',
         weights_save_path=args.save_dir,
-        # val_check_interval=1.0,
         logger=logger,
         callbacks=[lr_logger],
         reload_dataloaders_every_epoch=True,
         gradient_clip_val=1.0, terminate_on_nan=True,
         row_log_interval=100, log_save_interval=100)
 
-    trainer.test(lm_model)
+    test_perf = trainer.test(lm_model)[0]
+    print(test_perf)
+
+    # Get best model path
+    current_wd = os.getcwd()
+    best_model_dir = path.join(current_wd, last_checkpoint['checkpoint_callback_best_model_path'])
+
+    test_perf['best_model_path'] = best_model_dir
+    test_perf['best_val_score'] = last_checkpoint['checkpoint_callback_best_model_score']
+
+    for key in test_perf:
+        if isinstance(test_perf[key], torch.Tensor):
+            test_perf[key] = round(test_perf[key].item(), 2)
+
+    output_dir = path.join(current_wd, logger.log_dir)
+    perf_file = path.join(output_dir, "perf.json")
+    with open(perf_file, 'w') as f:
+        f.write(json.dumps(test_perf))

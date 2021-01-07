@@ -3,21 +3,11 @@ import argparse
 import os
 import glob
 
-# from bitarray import bitarray
 from os import path
 import numpy as np
 import re
 
 from constants import PIECE_TO_VAL
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-base_dir', default=None, type=str,
-                        help="Base directory where sub-directories correspond to notation-level directories.")
-
-    args = parser.parse_args()
-    return args
 
 
 def parse_fen(fen):
@@ -45,17 +35,6 @@ def parse_fen(fen):
     return fen_arr
 
 
-# def bitify_fen(fen):
-#     fen_arr = parse_fen(fen)
-#
-#     bit_repr = bitarray([False] * (64 * 12))
-#     for idx, fen_val in enumerate(fen_arr):
-#         if fen_val > -1:
-#             bit_repr[fen_val * 64 + idx] = True
-#
-#     return bit_repr
-
-
 def three_way_fen_coding(fen):
     fen_arr = parse_fen(fen)
 
@@ -68,18 +47,6 @@ def three_way_fen_coding(fen):
             three_way_repr[idx, piece_type] = parity
 
     return three_way_repr
-
-
-# def game_to_bit_sequence(move_seq):
-#     board = chess.Board()
-#     game_array = bitarray()
-#
-#     for move in move_seq:
-#         board.push_uci(move)
-#         fen = board.fen()
-#         game_array.extend(bitify_fen(fen))
-#
-#     return game_array
 
 
 def initialize_game_array():
@@ -131,7 +98,7 @@ def get_fen_for_file(input_file, output_dir):
 
 
 def get_fen_for_dir(input_dir, output_dir):
-    input_files = [f for f in glob.glob(path.join(input_dir, '*.txt')) if re.match('.*/([a-z]*|train.*).txt', f)]
+    input_files = [f for f in glob.glob(path.join(input_dir, '*.txt')) if re.match('.*/([a-z]*).txt', f)]
     print(input_files)
     for input_file in input_files:
         print(input_file)
@@ -140,13 +107,22 @@ def get_fen_for_dir(input_dir, output_dir):
 
 def main():
     args = parse_args()
-    uci_dir = path.join(args.base_dir, 'uci')
-    output_dir = path.join(args.base_dir, 'fen')
+    uci_dir = path.join(args.data_dir, 'uci')
+    output_dir = path.join(args.data_dir, 'fen')
 
     if not path.exists(output_dir):
         os.makedirs(output_dir)
 
     get_fen_for_dir(input_dir=uci_dir, output_dir=output_dir)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', default=None, type=str,
+                        help="Data directory where sub-directories correspond to notation-level directories.")
+
+    args = parser.parse_args()
+    return args
 
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-model_dir', type=str, help='Model directory')
-    parser.add_argument('-base_analysis_dir', type=str, default='models/analysis',
+    parser.add_argument('-base_analysis_dir', type=str, default='../models/analysis',
                         help='Analysis directory')
 
     args = parser.parse_args()
@@ -45,7 +45,6 @@ def analyze_prompt(prefix, move_prefix):
         # print(prefix)
         import sys
         sys.exit()
-
 
     is_check = board.is_check()
 
@@ -172,7 +171,7 @@ def analyze(input_dir, output_dir):
     # for category in ['human', 'synthetic']:
     for category in ['human']:
         print(category.capitalize())
-        actual_files = sorted(glob.glob(path.join(input_dir, f'{category}_end_*hard*')))
+        actual_files = sorted(glob.glob(path.join(input_dir, f'{category}_end_*')))
 
         print(output_dir)
         from prettytable import PrettyTable

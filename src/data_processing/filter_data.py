@@ -1,5 +1,7 @@
 from os import path
 import argparse
+import random
+import chess
 
 
 def parse_args():
@@ -15,7 +17,7 @@ def parse_args():
 
     if args.output_file is None:
         basename, extension = path.splitext(path.basename(args.source_file))
-        args.output_file = path.join(path.dirname(args.source_file), basename + "_uniq" + extension)
+        args.output_file = path.join(path.dirname(args.source_file), basename + "-uniq" + extension)
 
     return args
 
@@ -30,7 +32,9 @@ def filter_data(args):
 
     num_games = 0
     num_filtered_games = 0
-    with open(args.source_file) as reader, open(args.output_file, 'w') as writer:
+
+    games = []
+    with open(args.source_file) as reader:
         for line in reader:
             game = line.strip()
             num_games += 1
@@ -46,8 +50,23 @@ def filter_data(args):
                 continue
 
             data_hash.add(game_hash)
-            writer.write(line)
+            games.append(line)
             num_filtered_games += 1
+
+    with open(args.output_file, 'w') as writer:
+        random.seed(10)
+        random.shuffle(games)
+
+        for game in games:
+            try:
+                # Sanity check for filtered games
+                moves = game.strip().split()
+                board = chess.Board()
+                for move in moves:
+                    board.push(board.parse_uci(move))
+                writer.write(game)
+            except ValueError:
+                pass
 
     print(f"# of games: {num_games}, # of filtered games: {num_filtered_games}")
 

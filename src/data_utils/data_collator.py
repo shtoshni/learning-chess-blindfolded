@@ -3,25 +3,22 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class DataCollatorForLanguageModeling:
-    """
-    Data collator used for language modeling.
-    - collates batches of tensors, honoring their tokenizer's pad_token
-    - preprocesses batches for masked language modeling
-    """
-    def __init__(self, tokenizer, rap_no_grad=False, grounding=False, fixed_attention=False):
+
+    def __init__(self, tokenizer, rap_no_grad=True, grounding=False):
         self.tokenizer = tokenizer
         self.rap_no_grad = rap_no_grad
         self.grounding = grounding
-        self.fixed_attention = fixed_attention
 
     def __call__(self, examples):
         batch = self._tensorize_batch([example['input_ids'] for example in examples])
         labels = batch.clone().detach()
+        # Remove pad tokens and start tokens from loss calculation
         labels[labels == self.tokenizer.pad_token_id] = -100
+        labels[labels == self.tokenizer.bos_token_id] = -100
+
         if self.rap_no_grad and 'piece_type_posns' in examples[0]:
             for idx, example in enumerate(examples):
                 labels[idx, example['piece_type_posns']] = -100
-                # print(labels[idx])
 
         output_dict = {"input_ids": batch, "labels": labels}
 
@@ -31,11 +28,6 @@ class DataCollatorForLanguageModeling:
             separator_ind_list = [example['separator_ind'] for example in examples]
             board_rep = self._tensorize_board_rep(board_rep_list, separator_ind_list, max_length)
             output_dict["board_rep"] = board_rep
-
-        if self.fixed_attention:
-            output_dict['last_mention'] = pad_sequence(
-                [example['last_mention'] for example in examples],
-                batch_first=True, padding_value=-1)
 
         return output_dict
 

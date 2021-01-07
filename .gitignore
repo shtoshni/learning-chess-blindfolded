@@ -1,1 +1,9 @@
-__pycache__
+models/
+data/
+.idea/
+__pycache__/
+.ipynb_checkpoints/
+slurm_scripts/
+archive/
+board*.pdf
+board*svg

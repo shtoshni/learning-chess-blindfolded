@@ -1,28 +1,27 @@
 import re
-from os import path
+import os
+from collections import OrderedDict
 from constants import NOTATION_TO_REGEX
+from transformers import PreTrainedTokenizer
 
 
-class ChessTokenizer(object):
-    def __init__(self, vocab_dir, pad_symbol='<pad>', start_symbol='<s>', end_symbol='</s>',
-                 notation='uci'):
-        self.vocab = {}
-        self.id2symbol = []
-        with open(path.join(vocab_dir, "vocab.txt")) as f:
+class ChessTokenizer(PreTrainedTokenizer):
+    def __init__(self, vocab_file, notation='uci', pad_token="<pad>", bos_token="<s>",
+                 eos_token="</s>", **kwargs):
+        super(ChessTokenizer, self).__init__(
+            pad_token=pad_token, bos_token=bos_token, eos_token=eos_token, **kwargs)
+
+        self.vocab = OrderedDict()
+        self.ids_to_tokens = []
+        with open(vocab_file) as f:
             counter = 0
             for line in f:
                 symbol = line[:-1]
                 self.vocab[symbol] = counter
-                self.id2symbol.append(symbol)
-
+                self.ids_to_tokens.append(symbol)
                 counter += 1
 
-        self.pad_token_id = self.vocab[pad_symbol]
-        self._pad_token = pad_symbol
-        self.bos_token_id = self.vocab[start_symbol]
-        self.eos_token_id = self.vocab[end_symbol]
-        # Represent end of move symbol by None
-        self.vocab[' '] = None
+        self.token_is_piece_type_mask = [1 if symbol.isupper() else 0 for symbol in self.ids_to_tokens]
 
         if notation in NOTATION_TO_REGEX:
             self.move_regex = NOTATION_TO_REGEX[notation]
@@ -33,7 +32,13 @@ class ChessTokenizer(object):
     def get_vocab(self):
         return self.vocab
 
-    def encode(self, game_str, add_special_tokens=True, get_move_end_positions=True):
+    def encode_token(self, token):
+        return self.vocab[token]
+
+    def decode_token(self, token_idx):
+        return self.ids_to_tokens[token_idx]
+
+    def encode(self, game_str, add_special_tokens=True, get_move_end_positions=True, **kwargs):
         instance = []
         for part in self.move_pattern.split(game_str.strip()):
             if part == '':
@@ -44,8 +49,8 @@ class ChessTokenizer(object):
                 instance.append(part.strip())
 
         if add_special_tokens:
-            instance = ['<s>', ' '] + instance + [' ', '</s>']   # Empty string denotes end of move
-        instance = [self.vocab[symbol] for symbol in instance]
+            instance = [self.bos_token, ' '] + instance + [' ', self.eos_token]   # Empty string denotes end of move
+        instance = [None if symbol == ' ' else self.vocab[symbol] for symbol in instance]
         # print(instance)
         if not get_move_end_positions:
             return [symbol for symbol in instance if symbol is not None]
@@ -61,15 +66,20 @@ class ChessTokenizer(object):
             assert(len(instance) == len(end_positions))
             return instance, end_positions
 
-    def decode(self, id_list, keep_special_tokens=True):
-        game = ''.join([self.id2symbol[idx] for idx in id_list])
-        if not keep_special_tokens:
-            if '<s>' in game:
-                game = game[3:]
-            if '</s>' in game:
-                game = game[:-4]
+    def _convert_token_to_id(self, token):
+        """ Converts a token (str) in an id using the vocab. """
+        return self.vocab.get(token)
 
-        return game
+    def save_vocabulary(self, save_directory):
+        vocab_file = os.path.join(save_directory, "vocab.txt")
+        index = 0
+        with open(vocab_file, "w", encoding="utf-8") as writer:
+            for token, token_index in sorted(self.vocab.items(), key=lambda kv: kv[1]):
+                if index != token_index:
+                    index = token_index
+                writer.write(token + "\n")
+                index += 1
+        return (vocab_file,)
 
     def __call__(self, lines, max_length=None, **kwargs):
         encoded_inputs = []
@@ -78,10 +88,6 @@ class ChessTokenizer(object):
             encoded_input, end_positions = self.encode(line, get_move_end_positions=True)
             encoded_inputs.append(encoded_input)
             end_positions_list.append(end_positions)
-
-        # if max_length is not None:
-        #     encoded_inputs = [encoded_input[:max_length] for encoded_input in encoded_inputs]
-        #
 
         max_batch_len = max([len(encoded_input) for encoded_input in encoded_inputs])
         encoded_inputs = [

@@ -1,13 +1,13 @@
 
-GAME_TYPES = ["human", "synthetic"]
-TRAIN_SIZE = {"small": 15_000, "medium": 100_000, "large": 200_000}
+LENGTH_CATEGORIES = ["short", "long"]
+TASK_CATEGORIES = ["end", "start"]
+MOVE_TYPES = ["actual", "other"]
+
 NOTATION_TO_REGEX = {
-    "san": r'([ #=PRBNQKOx+-]|[a-h][1-8]|[a-h]|[1-8]||[bnqkr])',
-    "lan": r'([ #=PRBNQKOx+-])',
-    "lan_with_p": r'([ #=PRBNQKOx+-])',
-    "uci": r'([a-h][1-8]|[bnqkr]|" ")',
-    "rap": r'([PQRKNB]|[a-h][1-8]|[bnqkr]|" ")'
+    "uci": r'([PQRKNB]|[a-h][1-8]|[bnqkr]|" ")'
 }
+
+PIECE_TYPES = ['P', 'N', 'R', 'B', 'Q', 'K']
 
 PIECE_TO_VAL = {
     'p': 0,
@@ -23,3 +23,4 @@ PIECE_TO_VAL = {
     'k': 10,
     'K': 11
 }
+

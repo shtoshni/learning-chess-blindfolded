@@ -1,4 +1,4 @@
-# Learning Chess Blindfolded
+# Learning Chess Blindfolded - ICLR 2020 
 Chess as a testbed for evaluating language models at world state tracking. 
 
 ## Setup
@@ -58,7 +58,8 @@ python conversion_scripts/rap_conversion.py --base_dir ../data/lm_chess/human/ -
 ```
 Get Board Representation
 ```
-python data_processing/generate_fen_repr.py -base_dir ../data/lm_chess/human/
+python data_processing/generate_fen_repr.py -base_dir ../data/lm_chess/
+python data_processing/get_fen_other_eval.py --base_dir ../data/lm_chess/
 ```
 Querying data stats (average length of games etc.):
 ```
@@ -95,5 +96,11 @@ Custom training size and other model configurations can be specified as follows:
 python main.py --train_size 15_000 --n_layer 16
 ``` 
 
+## Analysis
+_Random Legal Move Baseline_: Baseline where a random legal move is chosen 
+as the predicted move. Performance of this baseline gives a sense of 
+complexity of the task even if the exact board state is available. 
 
-
+```
+python analysis/random_legalmove_baseline.py ../data/lm_chess/other_eval/uci/
+```
