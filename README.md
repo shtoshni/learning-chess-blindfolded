@@ -1,4 +1,4 @@
-# Learning Chess Blindfolded - ICLR 2020 
+# Learning Chess Blindfolded
 Chess as a testbed for evaluating language models at world state tracking. 
 
 ## Setup
