@@ -1,6 +1,8 @@
-# Learning Chess Blindfolded
+# Learning Chess Blindfolded: Evaluating Language Models on World State Tracking
 Chess as a testbed for evaluating language models on world state tracking.
 
+[Pretrained model](https://huggingface.co/shtoshni/gpt2-chess-uci) released via Huggingface model hub. 
+[Colab notebook](https://colab.research.google.com/drive/125y4MpnSWAakoSE5My9jGMtBExbjqTpW?usp=sharing) to interact with the pretrained model.
 ## Setup
 Step 1
 ```
@@ -146,4 +148,14 @@ _Error Analysis for Ending Squares_: Classifies the error made by the model amon
 three categories, namely syntactic, pseudo legal, and path obstruction. 
 ```
 python analysis/error_analysis_end.py --model_dir $MODEL_DIR
+```
+
+## Citation
+```
+@article{toshniwal2021chess,
+    title = {{Learning Chess Blindfolded: Evaluating Language Models on World State Tracking}},
+    author = "Shubham Toshniwal and Sam Wiseman and Karen Livescu and Kevin Gimpel",
+    archivePrefix = {arXiv},
+    year = "2021",
+}
 ```
