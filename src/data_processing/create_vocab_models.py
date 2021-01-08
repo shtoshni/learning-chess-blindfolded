@@ -13,20 +13,6 @@ logging.basicConfig(level=logging.DEBUG,
                     format="%(asctime)s: %(message)s")
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--vocab_dir", type=str, help="Vocab directory.")
-    parser.add_argument("--source_file", type=str, help="Source file.")
-    parser.add_argument("--notation", default="uci", type=str, help="Notation.")
-    parser.add_argument("--no_piece_type", default=True, action="store_false", dest="add_piece_type",
-                        help="Add piece types to vocab.")
-
-    args = parser.parse_args()
-    assert(path.exists(args.source_file))
-    return args
-
-
 def create_vocab(source_file, add_piece_type, notation="uci"):
     special_symbols = ['<pad>', '<s>', '</s>']
     if add_piece_type:
@@ -67,6 +53,20 @@ def save_vocab(vocab, notation, vocab_dir):
     with open(vocab_file, 'w') as f:
         for token in vocab.keys():
             f.write(token + '\n')
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--vocab_dir", type=str, help="Vocab directory.")
+    parser.add_argument("--source_file", type=str, help="Source file.")
+    parser.add_argument("--notation", default="uci", type=str, help="Notation.")
+    parser.add_argument("--no_piece_type", default=True, action="store_false", dest="add_piece_type",
+                        help="Add piece types to vocab.")
+
+    args = parser.parse_args()
+    assert(path.exists(args.source_file))
+    return args
 
 
 if __name__ == '__main__':

@@ -101,7 +101,7 @@ class ChessLM(LightningModule):
         parser.add_argument('--model_type', type=str, default='transformer', choices= ['transformer', 'rnn'])
         # RNN arguments
         parser.add_argument('--rnn_type', type=str, default='lstm', choices=['gru', 'lstm'])
-        parser.add_argument('--rnn_dropout', type=float, default=0.5)
+        parser.add_argument('--rnn_dropout', type=float, default=0.2)
         parser.add_argument('--n_hid', type=int, default=768)
 
         # Common Transformer and RNN args
@@ -138,8 +138,6 @@ class ChessLM(LightningModule):
             optimizer, num_warmup_steps=0.1 * self.num_training_steps,
             num_training_steps=self.num_training_steps)
         scheduler = {'scheduler': linear_scheduler, 'interval': 'step'}
-        # self.model.save_pretrained(self.logger.log_dir)
-        # self.tokenizer.save_pretrained(self.logger.log_dir)
         return [optimizer], [scheduler]
 
     def forward(self, batch):

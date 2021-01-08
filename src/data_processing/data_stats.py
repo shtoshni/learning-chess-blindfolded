@@ -26,7 +26,7 @@ def get_data_stats(data_dir, vocab_dir, notation, max_games=2e5):
             counter = 0
             for line in f:
                 token_len_list.append(len(line.strip().split()))
-                tokenized_len_list.append(len(tokenizer.tokenize(line.strip(), get_move_end_positions=True)[0]))
+                tokenized_len_list.append(len(tokenizer.encode(line.strip(), get_move_end_positions=False)))
                 counter += 1
                 if max_games is not None and counter >= max_games:
                     break

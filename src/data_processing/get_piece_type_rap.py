@@ -24,7 +24,7 @@ def main(args):
     np.random.seed(42)
 
     output_dir = path.join(args.data_dir, "rap")
-    print(output_dir)
+    print(f"Output directory: {output_dir}")
 
     if not path.exists(output_dir):
         os.makedirs(output_dir)

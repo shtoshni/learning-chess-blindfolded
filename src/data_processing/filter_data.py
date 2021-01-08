@@ -69,6 +69,7 @@ def filter_data(args):
                 pass
 
     print(f"# of games: {num_games}, # of filtered games: {num_filtered_games}")
+    print(f"Filtered games at {args.output_file}")
 
 
 if __name__ == '__main__':

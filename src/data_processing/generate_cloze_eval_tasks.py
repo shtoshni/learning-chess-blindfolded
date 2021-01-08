@@ -10,31 +10,6 @@ from collections import OrderedDict
 PREFIX_SIZE_TO_RANGE = {'short': (5, 50), 'long': (51, 100)}
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--data_dir', type=str, default=None,
-                        help="Base data directory where all notation specific directories are present.")
-    parser.add_argument('--max_games', type=int, default=1000,
-                        help='Number of games per eval type')
-
-    args = parser.parse_args()
-
-    assert(path.exists(args.data_dir))
-    args.notation_data_dir = path.join(args.data_dir, "uci")
-    assert (path.exists(args.data_dir))
-
-    args.base_output_dir = path.join(args.data_dir, "other_eval")
-    if not path.exists(args.base_output_dir):
-        os.makedirs(args.base_output_dir)
-
-    args.output_dir = path.join(args.base_output_dir, "uci")
-    if not path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-
-    return args
-
-
 def get_info_from_game_prefix(uci_prefix):
     piece_type_list = []
     board = chess.Board()
@@ -195,6 +170,31 @@ def get_eval_data(args, eval_examples):
             output_dict["other_starting_square"] = list(
                 info_dict["legal_starting_square"][other_piece_type])
             start_w.write(json.dumps(output_dict) + "\n")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--data_dir', type=str, default=None,
+                        help="Base data directory where all notation specific directories are present.")
+    parser.add_argument('--max_games', type=int, default=1000,
+                        help='Number of games per eval type')
+
+    args = parser.parse_args()
+
+    assert(path.exists(args.data_dir))
+    args.notation_data_dir = path.join(args.data_dir, "uci")
+    assert (path.exists(args.data_dir))
+
+    args.base_output_dir = path.join(args.data_dir, "other_eval")
+    if not path.exists(args.base_output_dir):
+        os.makedirs(args.base_output_dir)
+
+    args.output_dir = path.join(args.base_output_dir, "uci")
+    if not path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    return args
 
 
 def main():
