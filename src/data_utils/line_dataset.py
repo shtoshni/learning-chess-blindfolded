@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 class LineByLineTextDataset(Dataset):
 
     def __init__(self, tokenizer, file_path, block_size, max_instances=None,
-                 grounding=False, rap_prob=0.0):
+                 rap_prob=0.0):
         # print(file_path)
         assert os.path.isfile(file_path)
         self.rap_prob = rap_prob
-        self.grounding = grounding
         self.tokenizer = tokenizer
 
         logger.info("Creating features from dataset file at %s", file_path)
@@ -35,12 +34,6 @@ class LineByLineTextDataset(Dataset):
             rap_file = path.join(rap_dir, path.splitext(path.basename(file_path))[0] + ".npy")
             self.rap_data = np.load(rap_file, allow_pickle=True)[:max_instances]
 
-        if self.grounding:
-            fen_dir = path.join(path.dirname(path.dirname(file_path)), "fen")
-            fen_file = path.join(fen_dir, path.splitext(path.basename(file_path))[0] + ".npy")
-
-            self.fen_data = np.load(fen_file, allow_pickle=True)[:max_instances]
-
     def __len__(self):
         return len(self.examples)
 
@@ -51,10 +44,6 @@ class LineByLineTextDataset(Dataset):
             self.examples[i], self.end_positions[i], piece_type_posns = self._process_rap(
                 self.rap_data[i], self.examples[i], self.end_positions[i])
             output_dict['piece_type_posns'] = piece_type_posns
-
-        if self.grounding:
-            board_rep = self._process_fen(self.fen_data[i], self.end_positions[i])
-            output_dict['board_rep'] = board_rep
 
         output_dict['input_ids'] = torch.tensor(self.examples[i])
         output_dict['separator_ind'] = self.end_positions[i]
@@ -89,30 +78,6 @@ class LineByLineTextDataset(Dataset):
                 move_counter += 1
 
         return mod_example, mod_end_positions, piece_type_posns
-
-    @staticmethod
-    def _process_fen(fen_data, end_positions):
-        full_mat = torch.tensor(fen_data.reshape(-1, 70))
-        reshaped_mat = full_mat[:, :64]
-        other_info = full_mat[:, 64:]  # Castling, move, ischeck
-
-        board_rep: Tensor = torch.zeros((reshaped_mat.shape[0], 6, 64))
-
-        piece_occupied_x, piece_occupied_y = torch.where(reshaped_mat != -1)
-        piece_type = reshaped_mat[piece_occupied_x, piece_occupied_y] // 2
-        # print(piece_type)
-        parity = reshaped_mat[piece_occupied_x, piece_occupied_y] % 2
-        parity[parity == 0] = -1
-
-        board_rep[piece_occupied_x.long(), piece_type.long(), piece_occupied_y.long()] = parity.float()
-        board_rep = board_rep.reshape(-1, 384)
-
-        other_info = torch.cat([other_info, torch.zeros(other_info.shape[0], 64 - other_info.shape[1])], dim=1)
-        board_rep = torch.cat([board_rep, other_info], dim=-1)
-
-        # print(sum(end_positions), board_rep.shape[0])
-        assert (sum(end_positions) == board_rep.shape[0])
-        return board_rep
 
     def get_last_mention_idx(self, example):
         tokenizer = self.tokenizer

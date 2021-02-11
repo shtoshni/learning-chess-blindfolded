@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from pytorch_lightning import Trainer, seed_everything
 from collections import OrderedDict
 
-from model_utils.lm_model import ChessLM
+from lm_model import ChessLM
 from experiment import experiment
 
 
@@ -21,7 +21,7 @@ def get_model_name_hash(args):
 
 
 def get_model_name(args):
-    if args.model_type == 'transformer':
+    if args.model_type in ['reformer', 'performer', 'transformer']:
         arg_to_short_names = OrderedDict(
             [("train_size", "ts"), ("train_percent_check", "tpr"),
              ("n_layer", "layer"), ("n_head", "head"), ("n_embd", "emb"),
@@ -31,31 +31,42 @@ def get_model_name(args):
         )
 
         str_repr = ""
+        if args.model_type != 'transformer':
+            str_repr = args.model_type  + "_"
         for arg_name, short_name in arg_to_short_names.items():
             val = getattr(args, arg_name)
             if val is not None:
                 str_repr += short_name + "_" + str(val) + "_"
 
         str_repr = str_repr.strip('_')
-
         if args.max_epochs != 10:
             str_repr += f'_epochs_{args.max_epochs}'
 
-        if args.rap_prob:
-            str_repr += f"_rp_{int(100 * args.rap_prob)}"
-            if args.rap_no_grad:
-                str_repr += '_no_grad'
+        if args.model_type == 'transformer':
+            # We train the different model variants only for the standard transformer
+            if args.rap_prob:
+                str_repr += f"_rp_{int(100 * args.rap_prob)}"
+                if args.rap_no_grad:
+                    str_repr += '_no_grad'
 
-        if args.multiview:
-            str_repr += f'_mv_{args.multiview_margin}_{args.multiview_loss_wt}_{args.neg_samples}'
+            if args.oracle:
+                str_repr += '_oracle'
 
-        if args.oracle:
-            str_repr += f'_oracle_{args.inject_state}'
-            if args.rap_no_grad:
-                str_repr += '_no_grad'
+        elif args.model_type == 'reformer':
+            if args.num_buckets != 32:
+                str_repr += f"_nb_{args.num_buckets}"
+            if args.num_hashes != 1:
+                str_repr += f"_nh_{args.num_hashes}"
 
-        if args.oracle or args.multiview:
-            str_repr += f"_kernel_{args.kernel_size}"
+        elif args.model_type == 'performer':
+            if args.local_window_size != 50:
+                str_repr += f"_lws_{args.local_window_size}"
+            if args.generalized_attention:
+                str_repr += f"_general"
+            if args.feature_redraw != 1000:
+                str_repr += f"_redraw_{args.feature_redraw}"
+            if args.local_attn_heads != 6:
+                str_repr += f"_local_{args.local_attn_heads}"
 
     elif args.model_type == 'rnn':
         arg_to_short_names = OrderedDict(

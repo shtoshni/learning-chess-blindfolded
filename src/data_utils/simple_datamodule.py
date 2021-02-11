@@ -16,12 +16,14 @@ from constants import LENGTH_CATEGORIES, TASK_CATEGORIES
 class ChessLMDataModule(LightningDataModule):
     def __init__(self,  data_dir=None, vocab_dir=None, batch_size=8, num_workers=1,
                  train_size=1e6, n_positions=800, other_eval=True,
-                 rap_prob=0.0, rap_no_grad=True, multiview=False, oracle=False,
+                 rap_prob=0.0, rap_no_grad=False, oracle=False,
+                 model_type='transformer',
                  **kwargs):
         super().__init__()
 
         # Set Other eval
         self.other_eval = other_eval
+        self.model_type = model_type
 
         self.vocab_dir = vocab_dir
         self.data_dir = data_dir
@@ -29,11 +31,9 @@ class ChessLMDataModule(LightningDataModule):
 
         # Additional model settings
         self.rap_prob = rap_prob
-        self.multiview = multiview
         self.oracle = oracle
         if self.oracle:
             self.rap_prob = 1.00
-        self.grounding = (self.multiview or self.oracle)    # Both use board state
 
         self.max_len = n_positions
 
@@ -42,14 +42,16 @@ class ChessLMDataModule(LightningDataModule):
 
         self.tokenizer = ChessTokenizer(path.join(self.vocab_dir, "vocab.txt"))
         self.train_data_collator = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer, rap_no_grad=rap_no_grad, grounding=self.grounding,
+            tokenizer=self.tokenizer, rap_no_grad=rap_no_grad,
+            model_type=self.model_type
         )
 
-        # We don't want loss calculated over piecetypes during inference (rap_no_grad=True).
+        # We don't want loss calculated over piecetypes during inference (rap_no_grad=True) for RAP models.
         # Piecetypes are not considered a part of prediction, rather just the extra information present.
         # In the current setup, piecetypes are a part of inference only for the "Oracle" model.
         self.inference_data_collator = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer, rap_no_grad=True, grounding=self.grounding,
+            tokenizer=self.tokenizer, rap_no_grad=(False if self.oracle else True),
+            model_type=self.model_type
         )
 
         # Set the file names up
@@ -70,13 +72,6 @@ class ChessLMDataModule(LightningDataModule):
                 for len_category in LENGTH_CATEGORIES:
                     self.other_eval_files[task_category][len_category] = path.join(
                         other_eval_dir, f'{task_category}_{len_category}.jsonl')
-
-            if self.oracle:
-                fen_dir = path.join(path.dirname(self.data_dir), "fen")
-                for len_category in LENGTH_CATEGORIES:
-                    # FEN data is the same for the same length
-                    self.other_eval_fen[len_category] = np.load(
-                        path.join(fen_dir, f'other_eval_{len_category}.npy'), allow_pickle=True)
 
             self.other_eval_sets = OrderedDict()
             self.load_other_eval_sets()
@@ -109,8 +104,6 @@ class ChessLMDataModule(LightningDataModule):
         for task_category in self.other_eval_files:
             self.other_eval_sets[task_category] = {}
             for len_category in LENGTH_CATEGORIES:
-                if self.oracle:
-                    fen_data = self.other_eval_fen[len_category]
                 eval_file = self.other_eval_files[task_category][len_category]
                 eval_set = []
 
@@ -128,28 +121,6 @@ class ChessLMDataModule(LightningDataModule):
 
                                     coded_instance["prefix"] = prefix
                                     coded_instance["prefix_enc"] = prefix_enc
-
-                                    if self.oracle:
-                                        move_end_positions[-1] = 1  # Last token is a move ender
-                                        if task_category == "start":
-                                            # For starting square we add starting piece type to game prefix
-                                            additional_prefix_tokens = 1
-                                        else:
-                                            # For ending square we add two additional tokens to game prefix
-                                            # Start piece type and starting square
-                                            additional_prefix_tokens = 2
-                                        # The [1] reflects that <s> is a move ender
-                                        separator_ind_list = [1] + move_end_positions + [0] * additional_prefix_tokens
-
-                                        board_rep = LineByLineTextDataset._process_fen(
-                                            fen_data[idx], separator_ind_list)
-                                        board_rep_list = DataCollatorForLanguageModeling.align_board_state(
-                                            board_rep, separator_ind_list
-                                        )
-                                        board_rep_aligned = torch.unsqueeze(torch.stack(board_rep_list, dim=0), dim=0)
-                                        # print(board_rep_aligned.shape)
-
-                                        coded_instance["board_rep"] = board_rep_aligned
                             else:
                                 if isinstance(val, str):
                                     coded_val = self.tokenizer.encode_token(val)
@@ -170,7 +141,7 @@ class ChessLMDataModule(LightningDataModule):
         train_dataset = LineByLineTextDataset(
             tokenizer=self.tokenizer, file_path=self.train_file, block_size=self.max_len,
             max_instances=self.train_size,
-            grounding=self.grounding, rap_prob=(1.00 if self.oracle else self.rap_prob))
+            rap_prob=(1.00 if self.oracle else self.rap_prob))
 
         train_loader = torch.utils.data.DataLoader(
             train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
@@ -181,7 +152,7 @@ class ChessLMDataModule(LightningDataModule):
     def val_dataloader(self):
         dev_dataset = LineByLineTextDataset(
             tokenizer=self.tokenizer, file_path=self.dev_file, block_size=self.max_len,
-            grounding=self.grounding, rap_prob=(1.00 if self.oracle else 0.0))
+            rap_prob=(1.00 if self.oracle else 0.0))
         dev_loader = torch.utils.data.DataLoader(
             dev_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
             shuffle=False, collate_fn=self.inference_data_collator, drop_last=False, pin_memory=True)
@@ -191,7 +162,7 @@ class ChessLMDataModule(LightningDataModule):
     def test_dataloader(self):
         test_dataset = LineByLineTextDataset(
             tokenizer=self.tokenizer, file_path=self.test_file, block_size=self.max_len,
-            grounding=self.grounding, rap_prob=(1.00 if self.oracle else 0.0))
+            rap_prob=(1.00 if self.oracle else 0.0))
         test_loader = torch.utils.data.DataLoader(
             test_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
             shuffle=False, collate_fn=self.inference_data_collator, drop_last=False)

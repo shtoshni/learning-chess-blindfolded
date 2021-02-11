@@ -1,7 +1,7 @@
 # Learning Chess Blindfolded: Evaluating Language Models on World State Tracking
 Chess as a testbed for evaluating language models on world state tracking.
 
-[Pretrained model](https://huggingface.co/shtoshni/gpt2-chess-uci) released via Huggingface model hub. 
+[Pretrained model](https://huggingface.co/shtoshni/gpt2-chess-uci) released via Huggingface model hub.
 [Colab notebook](https://colab.research.google.com/drive/125y4MpnSWAakoSE5My9jGMtBExbjqTpW?usp=sharing) to interact with the pretrained model.
 ## Setup
 Step 1
@@ -34,7 +34,7 @@ export PYTHONPATH=${PWD}:${PYTHONPATH}
 
 The processed data is available [here](https://drive.google.com/file/d/1G4TA4KVdn5mLvMXsRI2bGC7VIdzqkr86/view?usp=sharing).
 UCI-based language models can be trained using just this data.
-To train models which require piecetype/board state, extract this additional information via steps described [below](#additional-board-state).
+To train models which require piece type/board state, extract this additional information via steps described [below](#additional-board-state).
 
 Next we described the steps used processing the data.
 
@@ -44,8 +44,8 @@ Next we described the steps used processing the data.
 ```
 python data_processing/parse_pgn.py --source_file PGN_FILE --output_dir OUTPUT_DIR --max_games 1e7
 ```
-- Filter data to remove duplicate games, games with skewed lengths (too short or too long), and games missing move annotations (rare case). 
-If output_file is not specified, a suffix of "-uniq" is added to source file name.  
+- Filter data to remove duplicate games, games with skewed lengths (too short or too long), and games missing move annotations (rare case).
+If output_file is not specified, a suffix of "-uniq" is added to source file name.
 ```
  python data_processing/filter_data.py --source_file INPUT_FILE --output_file OUTPUT_FILE
 ```
@@ -90,13 +90,13 @@ Tne next two steps create additional information regarding the world state.
 python data_processing/get_piece_type_rap.py --data_dir $DATA_DIR
 ```
 - This step extracts the board state from the [FEN notation](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation)
-  and stores it as a numpy file for different splits.
+  and stores it as a numpy file for different splits. This can be used to train multiview models (not supported in commits since Feb 2021).
 ```
 python data_processing/get_fen_repr.py --data_dir $DATA_DIR
 python data_processing/get_fen_other_eval.py --data_dir $DATA_DIR
 ```
 
-## Training 
+## Training
 
 Default settings:
 - Train-L i.e. 200K games for training
@@ -109,26 +109,19 @@ Baseline UCI model
 ```
 python main.py --data_dir $DATA_DIR
 ```
-UCI + RAP 
+UCI + RAP
 ```
 python main.py --rap_prob 0.15 --data_dir $DATA_DIR
-# To use the loss from predicting piecetypes in the sequence
-python main.py --rap_prob 0.15 --rap_grad --data_dir $DATA_DIR
 ```
-Multi-view
 ```
-python main.py --multiview --multiview_margin 0.6 --data_dir $DATA_DIR
-```
-Oracle
+UCI + Piece type
 ```
 python main.py --oracle --data_dir $DATA_DIR
-# To use the loss from predicting piecetypes in the sequence
-python main.py --oracle --rap_grad --data_dir $DATA_DIR
 ```
 Custom training size, number of layers, context size, and other model configurations can be specified as follows:
 ```
 python main.py --train_size 15_000 --n_layer 16 --window_size 50 --data_dir $DATA_DIR
-``` 
+```
 
 RNN models can be trained via:
 ```
@@ -136,16 +129,16 @@ python main.py --model_type rnn --n_layer 3 --rnn_dropout 0.2 --data_dir $DATA_D
 ```
 
 ## Analysis
-_Random Legal Move Baseline_: Baseline where a random legal move is chosen 
-as the predicted move. Performance of this baseline gives a sense of 
-complexity of the task even if the exact board state is available. 
+_Random Legal Move Baseline_: Baseline where a random legal move is chosen
+as the predicted move. Performance of this baseline gives a sense of
+complexity of the task even if the exact board state is available.
 
 ```
 python analysis/random_legalmove_baseline.py --data_dir $DATA_DIR
 ```
 
-_Error Analysis for Ending Squares_: Classifies the error made by the model among 
-three categories, namely syntactic, pseudo legal, and path obstruction. 
+_Error Analysis for Ending Squares_: Classifies the error made by the model among
+three categories, namely syntactic, pseudo legal, and path obstruction.
 ```
 python analysis/error_analysis_end.py --model_dir $MODEL_DIR
 ```
@@ -153,7 +146,7 @@ python analysis/error_analysis_end.py --model_dir $MODEL_DIR
 ## Citation
 ```
 @article{toshniwal2021chess,
-    title = {{Learning Chess Blindfolded: Evaluating Language Models on World State Tracking}},
+    title = {{Chess as a Testbed for Language Model State Tracking}},
     author = "Shubham Toshniwal and Sam Wiseman and Karen Livescu and Kevin Gimpel",
     archivePrefix = {arXiv},
     year = "2021",

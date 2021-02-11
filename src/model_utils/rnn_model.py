@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-from torch.nn import CrossEntropyLoss
 
 
 class RNNModel(nn.Module):
@@ -18,27 +16,10 @@ class RNNModel(nn.Module):
 
         # Weights are not tied
         self.decoder = nn.Linear(n_hid, vocab_size)
-        self.loss_fct = CrossEntropyLoss(reduction='sum')
 
-    def forward(self, input_ids, labels=None):
+    def forward(self, input_ids, **kwargs):
         embedded_inp = self.drop(self.embedding(input_ids))
         output_hidden_states = self.rnn(embedded_inp)[0]
         lm_logits = self.decoder(output_hidden_states)
 
-        loss = None
-        multiview_loss = None
-        if self.training and labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = lm_logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-
-            loss = self.loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-            num_terms = torch.sum(shift_labels != -100)
-            if num_terms:
-                loss = loss / num_terms
-            else:
-                loss = 0.0
-
-        # Match the format of GPT output
-        return loss, multiview_loss, lm_logits
+        return lm_logits

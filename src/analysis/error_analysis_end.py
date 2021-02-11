@@ -7,6 +7,7 @@ import json
 
 from collections import OrderedDict, defaultdict
 from prettytable import PrettyTable
+from copy import deepcopy
 
 
 def get_board_state(prefix):
@@ -24,6 +25,31 @@ def get_board_state(prefix):
 
 
 def analyze_error(board, piece_type, starting_square, pred):
+    square_idx = chess.SQUARE_NAMES.index(starting_square)
+
+    # Check for spatial errors first
+    spatial_error = True
+    for cur_piece_type in chess.PIECE_SYMBOLS[1:]:
+        if cur_piece_type == piece_type:
+            continue
+        # board_copy = deepcopy(board)
+        board_copy = chess.Board()
+        board_copy.clear_board()
+        board_copy._set_piece_at(
+            square_idx, chess.PIECE_SYMBOLS.index(cur_piece_type.lower()), color=board_copy.turn)
+
+        legal_endings = []
+        for move in board_copy.legal_moves:
+            legal_endings.append(move.uci()[2:])
+
+        if pred in legal_endings:
+            # Some other piece can do that
+            spatial_error = False
+            break
+
+    if spatial_error:
+        return "Spatial"
+
     # Check for syntax errors first
     empty_board = chess.Board()
     empty_board.clear_board()
@@ -72,7 +98,7 @@ def analyze_file(input_file):
 def analyze(input_dir, output_dir):
     actual_files = sorted(glob.glob(path.join(input_dir, f'end_*')))
 
-    error_categories = ['Syntax', 'Path Obstruction', 'Pseudo Legal']
+    error_categories = ['Spatial', 'Syntax', 'Path Obstruction', 'Pseudo Legal']
 
     for log_file in actual_files:
         stats = PrettyTable(error_categories + ['Other ' + category for category in error_categories])
@@ -92,8 +118,10 @@ def analyze(input_dir, output_dir):
 
         stats.add_row(error_counts)
         print(output_file)
-        print(' & '.join(error_counts))
+
         print(stats)
+        # Skip the spatial ones in the latex code
+        print( "\n\n" + ' & '.join(error_counts[1:4] + error_counts[5:]) + "\n\n")
 
 
 def main(args):

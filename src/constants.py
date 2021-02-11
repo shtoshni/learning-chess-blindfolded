@@ -1,5 +1,6 @@
 
-LENGTH_CATEGORIES = ["short", "long"]
+# LENGTH_CATEGORIES = ["short", "long"]
+LENGTH_CATEGORIES = ["long"]
 TASK_CATEGORIES = ["end", "start"]
 MOVE_TYPES = ["actual", "other"]
 

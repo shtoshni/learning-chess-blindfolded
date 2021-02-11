@@ -26,12 +26,12 @@ import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
 from transformers.activations import ACT2FN
-from transformers.configuration_gpt2 import GPT2Config
+from transformers import GPT2Config
 from transformers.file_utils import (
     ModelOutput,
     add_code_sample_docstrings,
     add_start_docstrings,
-    add_start_docstrings_to_callable,
+    # add_start_docstrings_to_callable,
     replace_return_docstrings,
 )
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
@@ -268,67 +268,6 @@ class MLP(nn.Module):
         return self.dropout(h2)
 
 
-class OtherMLP(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):  # in MLP: n_state=3072 (4 * n_embd)
-        super().__init__()
-        self.enc2 = nn.Linear(in_features=input_size, out_features=hidden_size)
-        self.enc3 = nn.Linear(in_features=hidden_size, out_features=output_size)
-        self.activation = nn.ReLU()
-
-    def forward(self, x):
-        x = self.activation(self.enc2(x))
-        x = self.activation(self.enc3(x))
-        return x
-
-
-class StateConv(nn.Module):
-    def __init__(self, rep_size=7 * 64, out_channels=384, num_fc_layers=1,
-                 kernel_size=3, out_features=768):
-        super().__init__()
-        self.input_channels = int(rep_size / 64)
-        self.act = nn.ReLU()
-        self.num_fc_layers = num_fc_layers
-
-        self.conv1 = nn.Conv2d(in_channels=self.input_channels, out_channels=96,
-                               kernel_size=kernel_size)
-        self.conv2 = nn.Conv2d(in_channels=96, out_channels=256,
-                               kernel_size=kernel_size)
-        self.conv3 = nn.Conv2d(in_channels=256, out_channels=out_channels,
-                               kernel_size=kernel_size)
-        dim = 8 - 3 * (kernel_size - 1)
-
-        # print(dim)
-        output_size = dim * dim * out_channels
-
-        self.fc = nn.ModuleList()
-        # for idx in range(num_fc_layers):
-        if self.num_fc_layers == 1:
-            self.fc.append(nn.Linear(in_features=output_size, out_features=out_features))
-
-        elif self.num_fc_layers == 2:
-            self.fc.append(nn.Linear(in_features=output_size, out_features=384))
-            self.fc.append(nn.Linear(in_features=384, out_features=out_features))
-
-    def forward(self, x):
-        batch_size, seq_length = x.size(0), x.size(1)
-        x = x.reshape(batch_size * seq_length, -1)
-
-        x = x[:, :self.input_channels * 64]
-        x = x.reshape(-1, self.input_channels, 8, 8)
-        x = self.act(self.conv1(x))
-        x = self.act(self.conv2(x))
-        x = self.act(self.conv3(x))
-        x = x.reshape(batch_size, seq_length, -1)
-        # print(x.shape)
-
-        for idx in range(self.num_fc_layers - 1):
-            x = self.act(self.fc[idx](x))
-
-        x = self.fc[-1](x)
-
-        return x
-
-
 class Block(nn.Module):
     def __init__(self, n_ctx, config, scale=False):
         super().__init__()
@@ -542,18 +481,6 @@ class GPT2Model(GPT2PreTrainedModel):
         self.drop = nn.Dropout(config.embd_pdrop)
         self.h = nn.ModuleList([Block(config.n_ctx, config, scale=True) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-
-        self.multiview = config.multiview
-        self.oracle = config.oracle
-        self.inject_state = config.inject_state
-
-        self.grounding = self.oracle or self.multiview
-
-        if self.grounding:
-            out_features = config.n_embd
-            self.state_model = StateConv(rep_size=7 * 64, kernel_size=config.kernel_size,
-                                         out_channels=config.out_channels, out_features=out_features)
-
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -569,7 +496,7 @@ class GPT2Model(GPT2PreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.h[layer].attn.prune_heads(heads)
 
-    @add_start_docstrings_to_callable(GPT2_INPUTS_DOCSTRING)
+    # @add_start_docstrings_to_callable(GPT2_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
         tokenizer_class=_TOKENIZER_FOR_DOC,
         checkpoint="gpt2",
@@ -661,17 +588,8 @@ class GPT2Model(GPT2PreTrainedModel):
         else:
             token_type_embeds = 0
 
-        if (self.multiview and self.training) or self.oracle:
-            board_state_mask = torch.sum(torch.abs(board_rep), dim=2) > 0
-            board_state_mask = torch.unsqueeze(board_state_mask, dim=2)
-            state_rep = board_state_mask * self.state_model(board_rep)
-            state_rep = self.drop(state_rep)
-
         hidden_states = inputs_embeds + position_embeds + token_type_embeds
         hidden_states = self.drop(hidden_states)
-
-        if self.oracle and self.inject_state == "just_base":
-            hidden_states += state_rep
 
         output_shape = input_shape + (hidden_states.size(-1),)
 
@@ -681,9 +599,6 @@ class GPT2Model(GPT2PreTrainedModel):
         for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states.view(*output_shape),)
-
-            if self.oracle and self.inject_state == "all":
-                hidden_states += state_rep
 
             outputs = block(
                 hidden_states,
@@ -704,9 +619,6 @@ class GPT2Model(GPT2PreTrainedModel):
             if output_attentions:
                 all_attentions = all_attentions + (outputs[2],)
 
-        if self.oracle and self.inject_state == "all":
-            hidden_states += state_rep
-
         hidden_states = self.ln_f(hidden_states)
         hidden_states = hidden_states.view(*output_shape)
 
@@ -714,61 +626,7 @@ class GPT2Model(GPT2PreTrainedModel):
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
-        multiview_loss = None
-        if self.multiview and self.training:
-            assert (state_rep.shape == hidden_states.shape)
-            state_rep_mask = torch.sum(torch.abs(board_rep), dim=2)
-            nonzero_indices = torch.nonzero(state_rep_mask, as_tuple=False)
-
-            board_state_rep = state_rep[nonzero_indices[:, 0], nonzero_indices[:, 1]]
-            lm_state_rep = self.drop(hidden_states[nonzero_indices[:, 0], nonzero_indices[:, 1]])
-            #
-            # gt_sim = (1 + torch.nn.functional.cosine_similarity(board_state_rep, lm_state_rep))/2
-            #
-            # def get_rand_sim(multiview1, multiview2):
-            #     rand_dist_list = []
-            #     for _ in range(self.config.neg_samples):
-            #         rand_perm = torch.randperm(multiview1.size()[0])
-            #         rand_dist = (1 + torch.nn.functional.cosine_similarity(multiview1, multiview2[rand_perm]))/2
-            #         rand_dist_list.append(rand_dist)
-            #
-            #     rand_dist_tens = torch.stack(rand_dist_list, dim=1)
-            #     return torch.sum(rand_dist_tens, dim=1)
-            #
-            # rand_sim = get_rand_sim(board_state_rep, lm_state_rep)
-            # multiview_loss = -torch.mean(torch.log(gt_sim / (gt_sim + rand_sim)))
-            #
-            # rand_sim_rev = get_rand_sim(lm_state_rep, board_state_rep)
-            # multiview_loss -= torch.mean(torch.log(gt_sim / (gt_sim + rand_sim_rev)))
-
-            gt_distance = (1 - torch.nn.functional.cosine_similarity(board_state_rep, lm_state_rep)) / 2
-
-            def get_rand_min_dist(multiview1, multiview2):
-                rand_dist_list = []
-                for _ in range(self.config.neg_samples):
-                    rand_perm = torch.randperm(multiview1.size()[0])
-                    rand_dist = (1 - torch.nn.functional.cosine_similarity(multiview1, multiview2[rand_perm])) / 2
-                    rand_dist_list.append(rand_dist)
-
-                rand_dist_tens = torch.stack(rand_dist_list, dim=1)
-                return torch.min(rand_dist_tens, dim=1)[0]
-
-            multiview_loss = torch.nn.functional.relu(
-                self.config.multiview_margin + gt_distance - get_rand_min_dist(board_state_rep, lm_state_rep))
-            multiview_loss += torch.nn.functional.relu(
-                self.config.multiview_margin + gt_distance - get_rand_min_dist(lm_state_rep, board_state_rep))
-
-            multiview_loss = torch.mean(multiview_loss)
-
-        if not return_dict:
-            return tuple(v for v in [hidden_states, presents, all_hidden_states, all_attentions, multiview_loss])
-
-        return BaseModelOutputWithPast(
-            last_hidden_state=hidden_states,
-            past_key_values=presents,
-            hidden_states=all_hidden_states,
-            attentions=all_attentions,
-        )
+        return tuple(v for v in [hidden_states, presents, all_hidden_states, all_attentions])
 
 
 @add_start_docstrings(
@@ -800,7 +658,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
             "use_cache": kwargs.get("use_cache"),
         }
 
-    @add_start_docstrings_to_callable(GPT2_INPUTS_DOCSTRING)
+    # @add_start_docstrings_to_callable(GPT2_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
         tokenizer_class=_TOKENIZER_FOR_DOC,
         checkpoint="gpt2",
@@ -864,30 +722,5 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
 
         lm_logits = self.lm_head(hidden_states)
 
-        loss = None
-        if self.training and labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = lm_logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss(reduction='sum')
-            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-            num_terms = torch.sum(shift_labels != -100)
-            if num_terms:
-                loss = loss / num_terms
-            else:
-                loss = 0.0
-
-        multiview_loss = transformer_outputs[4]
-
-        if not return_dict:
-            output = (lm_logits,) + transformer_outputs[1:]
-            return ((loss, multiview_loss) + output)    # if loss is not None else output
-
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=lm_logits,
-            past_key_values=transformer_outputs.past_key_values,
-            hidden_states=transformer_outputs.hidden_states,
-            attentions=transformer_outputs.attentions,
-        )
+        output = (lm_logits,) + transformer_outputs[1:]
+        return output

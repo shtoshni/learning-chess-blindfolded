@@ -5,11 +5,11 @@ from constants import NOTATION_TO_REGEX
 from transformers import PreTrainedTokenizer
 
 
-class ChessTokenizer(PreTrainedTokenizer):
+class ChessTokenizer:
     def __init__(self, vocab_file, notation='uci', pad_token="<pad>", bos_token="<s>",
                  eos_token="</s>", **kwargs):
-        super(ChessTokenizer, self).__init__(
-            pad_token=pad_token, bos_token=bos_token, eos_token=eos_token, **kwargs)
+        # super(ChessTokenizer, self).__init__(
+        #     pad_token=pad_token, bos_token=bos_token, eos_token=eos_token, **kwargs)
 
         self.vocab = OrderedDict()
         self.ids_to_tokens = []
@@ -20,6 +20,14 @@ class ChessTokenizer(PreTrainedTokenizer):
                 self.vocab[symbol] = counter
                 self.ids_to_tokens.append(symbol)
                 counter += 1
+
+        self.pad_token_id = self.vocab[pad_token]
+        self.eos_token_id = self.vocab[eos_token]
+        self.bos_token_id = self.vocab[bos_token]
+
+        self.bos_token = bos_token
+        self.eos_token = eos_token
+        self.pad_token = pad_token
 
         self.token_is_piece_type_mask = [1 if symbol.isupper() else 0 for symbol in self.ids_to_tokens]
 

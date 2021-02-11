@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping  # , ModelCheckpoint
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from model_utils.lm_model import ChessLM
+from lm_model import ChessLM
 from callbacks.model_checkpoint import MyModelCheckpoint
 
 
@@ -59,7 +59,7 @@ def experiment(args):
         args,
         amp_level='O1',
         gpus=-1,
-        precision=16,
+        precision=args.precision,
         # auto_scale_batch_size='binsearch',
         weights_save_path=args.save_dir,
         resume_from_checkpoint=resume_from_checkpoint,
@@ -98,7 +98,7 @@ def experiment(args):
         args,
         amp_level='O1',
         gpus=1,
-        precision=16,
+        precision=args.precision,
         weights_save_path=args.save_dir,
         logger=logger,
         callbacks=[lr_logger],
@@ -118,7 +118,7 @@ def experiment(args):
 
     for key in test_perf:
         if isinstance(test_perf[key], torch.Tensor):
-            test_perf[key] = round(test_perf[key].item(), 2)
+            test_perf[key] = round(test_perf[key].item(), 4)
 
     output_dir = path.join(current_wd, logger.log_dir)
     perf_file = path.join(output_dir, "perf.json")

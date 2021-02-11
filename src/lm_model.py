@@ -26,7 +26,7 @@ class ChessLM(LightningModule):
                  n_embd=768, n_positions=1024, n_layer=12, n_head=12,
                  init_lr=3e-4, accumulate_grad_batches=1,
                  num_training_steps=None, other_eval=True,
-                 stride_size=None, window_size=None, multiview_margin=0.5,
+                 stride_size=None, window_size=None,
                  model_type='transformer',
                  **kwargs):
         super().__init__()
@@ -35,13 +35,10 @@ class ChessLM(LightningModule):
 
         self.model_type = model_type  # RNN vs Transformer
 
-        # Board state setting
-        self.multiview = args.multiview
-        self.multiview_loss_wt = args.multiview_loss_wt
         self.oracle = args.oracle
-        self.grounding = self.oracle or self.multiview
+        self.max_len = n_positions
 
-        self.datamodule = ChessLMDataModule(grounding=self.grounding, **vars(args))
+        self.datamodule = ChessLMDataModule(**vars(args))
         self.tokenizer = self.datamodule.tokenizer
         vocab_size = len(self.tokenizer.get_vocab())
 
@@ -61,7 +58,10 @@ class ChessLM(LightningModule):
                 n_ctx=n_positions,
                 n_head=n_head,
                 n_layer=n_layer,
+                bos_token_id=self.tokenizer.bos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
             )
+            print(self.config)
             if stride_size is not None:
                 attention_mask = get_strided_attn_mask(stride_size, max_seq_length=n_positions)
                 self.config.static_attention_mask = attention_mask
@@ -71,26 +71,26 @@ class ChessLM(LightningModule):
             else:
                 self.config.static_attention_mask = None
 
-            # Whether to use board state or not
-            # Only training
-            self.config.multiview = self.multiview
-            self.config.multiview_margin = multiview_margin
-            self.config.neg_samples = args.neg_samples
-
-            # Both inference and training
-            self.config.oracle = args.oracle
-            self.config.inject_state = args.inject_state
-
-            # Convolution stuff
-            self.config.kernel_size = args.kernel_size
-            self.config.out_channels = args.out_channels
-
-            self.max_len = n_positions
             self.model = GPT2LMHeadModel(config=self.config)
 
         elif model_type == 'rnn':
             self.model = RNNModel(rnn_type=args.rnn_type, vocab_size=vocab_size, n_embd=args.n_embd,
                                   n_hid=args.n_hid, n_layer=n_layer, rnn_dropout=args.rnn_dropout)
+        elif model_type == 'reformer':
+            from model_utils.reformer_model import get_reformer
+            self.model = get_reformer(
+                vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_positions=n_positions,
+                num_buckets=args.num_buckets, num_hashes=args.num_hashes,
+            )
+
+        elif model_type == 'performer':
+            from model_utils.performer_model import get_performer
+            self.model = get_performer(
+                n_positions=n_positions, n_head=n_head, n_layer=n_layer, vocab_size=vocab_size, n_embd=n_embd,
+                local_window_size=args.local_window_size, feature_redraw=args.feature_redraw,
+                generalized_attention=args.generalized_attention
+            )
+
         else:
             raise NotImplementedError(f'Model type: {model_type} not supported')
 
@@ -98,7 +98,8 @@ class ChessLM(LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
 
-        parser.add_argument('--model_type', type=str, default='transformer', choices= ['transformer', 'rnn'])
+        parser.add_argument('--model_type', type=str, default='transformer',
+                            choices= ['transformer', 'rnn', 'performer', 'reformer'])
         # RNN arguments
         parser.add_argument('--rnn_type', type=str, default='lstm', choices=['gru', 'lstm'])
         parser.add_argument('--rnn_dropout', type=float, default=0.2)
@@ -113,22 +114,23 @@ class ChessLM(LightningModule):
         parser.add_argument('--n_positions', type=int, default=512)
         parser.add_argument('--stride_size', type=int, default=None)
         parser.add_argument('--window_size', type=int, default=None)
+
+        # Reformer args
+        parser.add_argument('--num_buckets', type=int, default=32)
+        parser.add_argument('--num_hashes', type=int, default=1)
+
+        # Performer args
+        parser.add_argument('--local_window_size', type=int, default=50)
+        parser.add_argument('--generalized_attention', default=False, action="store_true")
+        parser.add_argument('--feature_redraw',  type=int, default=1000)
+        parser.add_argument('--local_attn_heads', type=int, default=6)
+
         # Adding board state
         # (0) RAP
         parser.add_argument('--rap_prob', type=float, default=0.0)
-        parser.add_argument('--rap_grad', dest='rap_no_grad', default=True, action="store_false")
-        # (1) Multiview
-        parser.add_argument('--multiview', action="store_true", default=False)
-        parser.add_argument('--multiview_margin', type=float, default=0.5)
-        parser.add_argument('--multiview_loss_wt', type=float, default=1.0)
-        parser.add_argument('--neg_samples', type=int, default=10)
-        # (2) Oracle
+        parser.add_argument('--rap_no_grad', default=False, action="store_true")
+        # (1) Oracle
         parser.add_argument('--oracle', default=False, action="store_true")
-        parser.add_argument('--inject_state', type=str, default="just_base",
-                            choices=['just_base', 'all'], help="Which layers to add the board state to")
-        # Boars state model details
-        parser.add_argument('--kernel_size', type=int, default=3)
-        parser.add_argument('--out_channels', type=int, default=384)
 
         return parser
 
@@ -140,50 +142,43 @@ class ChessLM(LightningModule):
         scheduler = {'scheduler': linear_scheduler, 'interval': 'step'}
         return [optimizer], [scheduler]
 
-    def forward(self, batch):
-        outputs = self.model(**batch)
-        if self.training:
-            return outputs[:2]
+    def forward(self, input_ids, labels=None):
+        outputs = self.model(input_ids, return_dict=False)
+        if isinstance(outputs, tuple):
+            lm_logits = outputs[0]
         else:
-            # Mask out piece type predictions
-            # Since we test the model on pure UCI notation, we don't want to penalize RAP-trained/Oracle models
-            # for learning to predict the piece types as part of the sequence. So we mask out those indices
-            # from the logits.
-            labels = batch['labels']
-            lm_logits = outputs[2]
+            # Perfomer just returns the logits
+            lm_logits = outputs
 
-            piece_type_mask = torch.tensor(self.tokenizer.token_is_piece_type_mask,
-                                           dtype=lm_logits.dtype, device=batch['input_ids'].device)
-            lm_logits = lm_logits * (1 - piece_type_mask) + piece_type_mask * (-1e10)
+        if not self.training:
+            if not self.oracle:
+                # Mask out piece types for all but the oracle model
+                piece_type_mask = torch.tensor(self.tokenizer.token_is_piece_type_mask,
+                                               dtype=lm_logits.dtype, device=input_ids.device)
+                lm_logits = lm_logits * (1 - piece_type_mask) + piece_type_mask * (-1e10)
 
-            loss, multiview_loss = outputs[:2]
-            if batch['labels'] is not None:
-                # Shift so that tokens < n predict n
-                shift_logits = lm_logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-                # Flatten the tokens
-                loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
-                loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-                num_terms = torch.sum(shift_labels != -100)
-                if num_terms:
-                    loss = loss / torch.sum(shift_labels != -100)
-                else:
-                    loss = 0.0
-            return loss, multiview_loss
+        if labels is not None:
+            # Shift so that tokens < n predict n
+            shift_logits = lm_logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            num_terms = torch.sum(shift_labels != -100)
+            if num_terms:
+                loss = loss / num_terms
+            else:
+                loss = 0.0
+
+            return loss
+        else:
+            return lm_logits
 
     def training_step(self, batch, batch_ids):
-        # print(batch_ids)
-        if not self.multiview:
-            loss, _ = self(batch)
-            multiview_loss = None
-        else:
-            loss, multiview_loss = self(batch)
+        loss = self(**batch)
 
         train_loss = loss
         train_log = {'loss/train_loss': loss}
-        if multiview_loss is not None:
-            train_loss = loss + self.multiview_loss_wt * multiview_loss
-            train_log['loss/train_multiview_loss'] = multiview_loss
 
         self.current_epoch_steps += batch["input_ids"].shape[0]
         return {'loss': train_loss, 'log': train_log}
@@ -191,7 +186,7 @@ class ChessLM(LightningModule):
     def validation_step(self, batch, batch_ids, split="val"):
         # print("Validation", batch_ids)
         input_ids, labels = batch["input_ids"], batch["labels"]
-        loss, _ = self(batch)
+        loss = self(**batch)
         # Removing labels for which losses are not calculated.
         batch_tokens = torch.sum(labels != -100)
         val_log = {f'loss/{split}_loss': loss.detach()}
@@ -265,12 +260,7 @@ class ChessLM(LightningModule):
                         # Add prefix additions such as piece type or starting square to query the model
                         prefix.extend([encoded_dict[entry + "_enc"] for entry in prefix_addition])
 
-                        if self.oracle:
-                            board_rep = encoded_dict["board_rep"]
-                            logits = self.model(input_ids=torch.tensor([prefix]).cuda(),
-                                                board_rep=board_rep.cuda())[2]
-                        else:
-                            logits = self.model(input_ids=torch.tensor([prefix]).cuda())[2]
+                        logits = self(input_ids=torch.tensor([prefix]).cuda())
 
                         last_token_logit = logits[0, -1, :]
                         # Get top-k predictions where k=number of legal choices
