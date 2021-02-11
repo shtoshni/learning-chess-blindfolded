@@ -14,8 +14,8 @@ Step 2: Install packages. The following are the core pacakage which can be separ
 ```
 chess==1.3.0
 pytorch-lightning==0.9.0
-torch==1.7.0.dev20200719
-transformers==3.1.0
+torch==1.7.1
+transformers==4.2.2
 prettytable==0.7.2
 ```
 
@@ -32,7 +32,7 @@ export PYTHONPATH=${PWD}:${PYTHONPATH}
 
 ## Data Preparation
 
-The processed data is available [here](https://drive.google.com/file/d/1G4TA4KVdn5mLvMXsRI2bGC7VIdzqkr86/view?usp=sharing).
+The processed data is available [here](https://drive.google.com/drive/folders/1G6KdcUhyH15xV6AmcaDTb9i0Hxjtcvdp?usp=sharing).
 UCI-based language models can be trained using just this data.
 To train models which require piece type/board state, extract this additional information via steps described [below](#additional-board-state).
 
@@ -69,6 +69,9 @@ tail -n 130000 ${src_file} | head -n 50000 > ${output_dir}/other_eval.txt
 cd ../src
 DATA_DIR="../data/lm_chess"
 ```
+
+Train-S, Train-M, and Train-L correspond to the first 15K, 50K, and 200K games respectively of 
+the 500K training set.
 
 - Create vocabulary
 ```
@@ -113,7 +116,6 @@ UCI + RAP
 ```
 python main.py --rap_prob 0.15 --data_dir $DATA_DIR
 ```
-```
 UCI + Piece type
 ```
 python main.py --oracle --data_dir $DATA_DIR
@@ -127,7 +129,14 @@ RNN models can be trained via:
 ```
 python main.py --model_type rnn --n_layer 3 --rnn_dropout 0.2 --data_dir $DATA_DIR
 ```
-
+Reformer models can be trained via:
+```
+python main.py --model_type reformer --num_buckets 64  --num_hashes 8 --n_head 12  --n_layer 12  --train_size 200_000
+```
+Peformer models have the following options:
+```
+python main.py --model_type performer --local_attn_heads 0  --generalized_attention  --feature_redraw 100 --n_head 12  --n_layer 12  --train_size 50_000 --precision 32 --data_dir $DATA_DIR
+```
 ## Analysis
 _Random Legal Move Baseline_: Baseline where a random legal move is chosen
 as the predicted move. Performance of this baseline gives a sense of
@@ -138,7 +147,7 @@ python analysis/random_legalmove_baseline.py --data_dir $DATA_DIR
 ```
 
 _Error Analysis for Ending Squares_: Classifies the error made by the model among
-three categories, namely syntactic, pseudo legal, and path obstruction.
+four categories, namely unreachable, syntactic, pseudo legal, and path obstruction.
 ```
 python analysis/error_analysis_end.py --model_dir $MODEL_DIR
 ```
