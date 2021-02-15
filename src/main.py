@@ -53,7 +53,9 @@ def get_model_name(args):
                 str_repr += '_oracle'
 
         elif args.model_type == 'reformer':
-            if args.num_buckets != 32:
+            if args.local_window_size != 50:
+                str_repr += f"_lws_{args.local_window_size}"
+            if args.num_buckets != 8:
                 str_repr += f"_nb_{args.num_buckets}"
             if args.num_hashes != 1:
                 str_repr += f"_nh_{args.num_hashes}"

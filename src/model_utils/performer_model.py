@@ -24,7 +24,7 @@ def get_performer(n_positions=512, n_head=12, n_layer=12, vocab_size=77, n_embd=
         ff_chunks=10,  # chunk feedforward layer, from Reformer paper
         use_scalenorm=False,  # use scale norm, from 'Transformers without Tears' paper
         use_rezero=False,  # use rezero, from 'Rezero is all you need' paper
-        ff_glu=True,  # use GLU variant for feedforward
+        ff_glu=False,  # use GLU variant for feedforward
         emb_dropout=0.1,  # embedding dropout
         ff_dropout=0.1,  # feedforward dropout
         attn_dropout=0.1,  # post-attn dropout

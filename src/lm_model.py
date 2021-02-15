@@ -78,10 +78,16 @@ class ChessLM(LightningModule):
                                   n_hid=args.n_hid, n_layer=n_layer, rnn_dropout=args.rnn_dropout)
         elif model_type == 'reformer':
             from model_utils.reformer_model import get_reformer
+            if self.training:
+                hash_seed = None
+            else:
+                hash_seed = 0
             self.model = get_reformer(
-                vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_positions=n_positions,
-                num_buckets=args.num_buckets, num_hashes=args.num_hashes,
+                vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_head=n_head, n_positions=n_positions,
+                local_window_size=args.local_window_size, num_hashes=args.num_hashes,
+                num_buckets=args.num_buckets, hash_seed=hash_seed
             )
+            print(self.model)
 
         elif model_type == 'performer':
             from model_utils.performer_model import get_performer
@@ -113,14 +119,16 @@ class ChessLM(LightningModule):
         parser.add_argument('--n_head', type=int, default=12)
         parser.add_argument('--n_positions', type=int, default=512)
         parser.add_argument('--stride_size', type=int, default=None)
-        parser.add_argument('--window_size', type=int, default=None)
+
+        # Reformer + Performer + GPT2 local - common params
+        parser.add_argument('--window_size', type=int, default=None)  # GPT2
+        parser.add_argument('--local_window_size', type=int, default=50)  # Reformer, Performer
 
         # Reformer args
-        parser.add_argument('--num_buckets', type=int, default=32)
         parser.add_argument('--num_hashes', type=int, default=1)
+        parser.add_argument('--num_buckets', type=int, default=8)
 
         # Performer args
-        parser.add_argument('--local_window_size', type=int, default=50)
         parser.add_argument('--generalized_attention', default=False, action="store_true")
         parser.add_argument('--feature_redraw',  type=int, default=1000)
         parser.add_argument('--local_attn_heads', type=int, default=6)

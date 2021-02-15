@@ -34,9 +34,10 @@ class DataCollatorForLanguageModeling:
             return padded_sequence
         else:
             max_len = padded_sequence.shape[1]
-            increased_len = 384 - max_len
-            if increased_len < 0:
-                raise ValueError(f"{increased_len} < 384")
-            additional_padding = torch.Tensor(padded_sequence.shape[0], increased_len).fill_(
-                self.tokenizer.pad_token_id)
-            return torch.cat([padded_sequence, additional_padding.long()], dim=1)
+            if max_len % 50 == 0:
+                return padded_sequence
+            else:
+                increased_len = (max_len//50 + 1) * 50 - max_len
+                additional_padding = torch.Tensor(padded_sequence.shape[0], increased_len).fill_(
+                    self.tokenizer.pad_token_id)
+                return torch.cat([padded_sequence, additional_padding.long()], dim=1)
