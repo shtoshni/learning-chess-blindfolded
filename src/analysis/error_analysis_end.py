@@ -64,18 +64,19 @@ def analyze_error(board, piece_type, starting_square, pred):
         return "Syntax"
 
     # Pseudo-legal check
-    is_check = board.is_check()
-    if is_check:
-        for pseudo_legal_move in board.pseudo_legal_moves:
-            if pred == pseudo_legal_move.uci()[2:]:
-                # Pseudo legal move
-                return "Pseudo Legal"
+    # The king remains in check after the move is executed
+    # Or the move introduces king to check
+    for pseudo_legal_move in board.pseudo_legal_moves:
+        if (starting_square + pred) == pseudo_legal_move.uci():
+            # Pseudo legal move
+            return "Pseudo Legal"
 
     return "Path Obstruction"
 
 
 def analyze_file(input_file):
-    error_counter = {"actual": defaultdict(list), "other": defaultdict(list)}
+    error_counter = {"actual": defaultdict(list), "other": defaultdict(list),
+                     "correct-actual": [], "correct-other": []}
     with open(input_file) as reader:
         for line in reader:
             instance = json.loads(line.strip())
@@ -88,15 +89,16 @@ def analyze_file(input_file):
                 pred = result["pred"][0]
 
                 if result["corr"] != 1:
-                    # counter[category] += 1
                     error_type = analyze_error(board_state, piece_type, starting_square, pred)
                     error_counter[category][error_type].append(instance)
+                else:
+                    error_counter[f"correct-{category}"].append(instance)
 
     return error_counter
 
 
 def analyze(input_dir, output_dir):
-    actual_files = sorted(glob.glob(path.join(input_dir, f'end_*')))
+    actual_files = sorted(glob.glob(path.join(input_dir, f'end_long*')))
 
     error_categories = ['Spatial', 'Syntax', 'Path Obstruction', 'Pseudo Legal']
 
@@ -116,12 +118,30 @@ def analyze(input_dir, output_dir):
                     output_dict[category + "-" + error_category] = error_dict[category][error_category]
                     writer.write(json.dumps(output_dict) + "\n")
 
+                output_dict = {f'correct-{category}': error_dict[f'correct-{category}']}
+                writer.write(json.dumps(output_dict) + "\n")
+
         stats.add_row(error_counts)
         print(output_file)
 
         print(stats)
         # Skip the spatial ones in the latex code
-        print( "\n\n" + ' & '.join(error_counts[1:4] + error_counts[5:]) + "\n\n")
+        error_counts = error_counts[1:4] + error_counts[5:]
+        output_str = ""
+        for idx, error_count in enumerate(error_counts):
+            if idx in [1, 2, 5]:
+                # Path obstruction or pseudo legal
+                if int(error_count) < 10:
+                    output_str += '\phantom{1}'
+            else:
+                # Syntax error
+                if int(error_count) < 10:
+                    output_str += '\phantom{11}'
+                elif int(error_count) < 100:
+                    output_str += '\phantom{1}'
+            output_str += f'{error_count} & '
+
+        print("\n\n" + output_str.strip('& ') + "\n\n")
 
 
 def main(args):

@@ -78,16 +78,10 @@ class ChessLM(LightningModule):
                                   n_hid=args.n_hid, n_layer=n_layer, rnn_dropout=args.rnn_dropout)
         elif model_type == 'reformer':
             from model_utils.reformer_model import get_reformer
-            if self.training:
-                hash_seed = None
-            else:
-                hash_seed = 0
             self.model = get_reformer(
                 vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_head=n_head, n_positions=n_positions,
                 local_window_size=args.local_window_size, num_hashes=args.num_hashes,
-                num_buckets=args.num_buckets, hash_seed=hash_seed
-            )
-            print(self.model)
+                num_buckets=args.num_buckets)
 
         elif model_type == 'performer':
             from model_utils.performer_model import get_performer
@@ -126,7 +120,7 @@ class ChessLM(LightningModule):
 
         # Reformer args
         parser.add_argument('--num_hashes', type=int, default=1)
-        parser.add_argument('--num_buckets', type=int, default=8)
+        parser.add_argument('--num_buckets', type=int, default=None)
 
         # Performer args
         parser.add_argument('--generalized_attention', default=False, action="store_true")
@@ -144,10 +138,17 @@ class ChessLM(LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.init_lr)
-        linear_scheduler = get_linear_schedule_with_warmup(
+        scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps=0.1 * self.num_training_steps,
             num_training_steps=self.num_training_steps)
-        scheduler = {'scheduler': linear_scheduler, 'interval': 'step'}
+
+        if self.model_type == "reformer":
+            from optimization import get_inverse_square_root_decay
+            scheduler = get_inverse_square_root_decay(
+                optimizer, num_warmup_steps=0.1 * self.num_training_steps,
+            )
+
+        scheduler = {'scheduler': scheduler, 'interval': 'step'}
         return [optimizer], [scheduler]
 
     def forward(self, input_ids, labels=None):

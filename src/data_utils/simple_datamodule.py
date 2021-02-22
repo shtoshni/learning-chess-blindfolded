@@ -81,7 +81,6 @@ class ChessLMDataModule(LightningDataModule):
     def get_num_of_canonical_tokens(self):
         split_to_num_tokens = {}
         for split in ['val', 'test']:
-            data_file = None
             if split == 'val' or split == 'dev':
                 data_file = self.dev_file
             elif split == 'test':

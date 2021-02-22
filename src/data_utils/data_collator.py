@@ -24,16 +24,15 @@ class DataCollatorForLanguageModeling:
         return output_dict
 
     def _tensorize_batch(self, examples):
-        # length_of_first = examples[0].size(0)
-        # are_tensors_same_length = all(x.size(0) == length_of_first for x in examples)
-        # if are_tensors_same_length:
-        #     return torch.stack(examples, dim=0)
-        # else:
         padded_sequence = pad_sequence(examples, batch_first=True, padding_value=self.tokenizer.pad_token_id)
         if self.model_type != 'reformer':
             return padded_sequence
         else:
             max_len = padded_sequence.shape[1]
+            # increased_len = 350 - max_len
+            # additional_padding = torch.Tensor(padded_sequence.shape[0], increased_len).fill_(
+            #     self.tokenizer.pad_token_id)
+            # return torch.cat([padded_sequence, additional_padding.long()], dim=1)
             if max_len % 50 == 0:
                 return padded_sequence
             else:
