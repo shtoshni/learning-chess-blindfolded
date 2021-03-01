@@ -121,7 +121,7 @@ UCI + RAP
 ```
 python main.py --rap_prob 0.15 --data_dir $DATA_DIR
 ```
-UCI + Piece type
+UCI + AP
 ```
 python main.py --oracle --data_dir $DATA_DIR
 ```
