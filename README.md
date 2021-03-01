@@ -160,9 +160,10 @@ python analysis/error_analysis_end.py --model_dir $MODEL_DIR
 ## Citation
 ```
 @article{toshniwal2021chess,
-    title = {{Chess as a Testbed for Language Model State Tracking}},
+    title = {{Learning Chess Blindfolded: Evaluating Language Models on State Tracking}},
     author = "Shubham Toshniwal and Sam Wiseman and Karen Livescu and Kevin Gimpel",
-    archivePrefix = {arXiv},
-    year = "2021",
+    year={2021},
+    eprint={2102.13249},
+    archivePrefix={arXiv},
 }
 ```
