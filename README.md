@@ -1,4 +1,9 @@
 # Learning Chess Blindfolded: Evaluating Language Models on World State Tracking
+
+<p align="center">
+<img src="chess_fig.jpg" width="500" />
+</p>
+
 Chess as a testbed for evaluating language models on world state tracking.
 
 [Pretrained model](https://huggingface.co/shtoshni/gpt2-chess-uci) released via Huggingface model hub.
