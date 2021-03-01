@@ -1,7 +1,7 @@
 # Learning Chess Blindfolded: Evaluating Language Models on World State Tracking
 
 <p align="center">
-<img src="chess_fig.jpg" width="500" />
+<img src="chess_fig.png" width="500" />
 </p>
 
 Chess as a testbed for evaluating language models on world state tracking.
