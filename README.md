@@ -136,11 +136,11 @@ python main.py --model_type rnn --n_layer 3 --rnn_dropout 0.2 --data_dir $DATA_D
 ```
 Reformer models can be trained via:
 ```
-python main.py --model_type reformer --num_buckets 64  --num_hashes 8 --n_head 12  --n_layer 12  --train_size 200_000
+python main.py --model_type reformer --n_head 12  --n_layer 12  --train_size 200_000
 ```
 Peformer models have the following options:
 ```
-python main.py --model_type performer --local_attn_heads 0  --generalized_attention  --feature_redraw 100 --n_head 12  --n_layer 12  --train_size 50_000 --precision 32 --data_dir $DATA_DIR
+python main.py --model_type performer --local_attn_heads 0  --generalized_attention  --feature_redraw 100 --n_head 12 --n_layer 12  --train_size 50_000 --precision 32 --data_dir $DATA_DIR
 ```
 ## Analysis
 _Random Legal Move Baseline_: Baseline where a random legal move is chosen
