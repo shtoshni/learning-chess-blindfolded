@@ -44,8 +44,8 @@ jupyter-core==4.6.3
 keyring==21.2.1
 kiwisolver==1.2.0
 knockknock==0.1.8.1
-lmdb==0.98
 local-attention==1.2.1
+lmdb==0.98
 lxml==4.5.2
 Markdown==3.2.2
 MarkupSafe==1.1.1
